@@ -1,0 +1,43 @@
+#!/usr/bin/python
+
+"""
+stores tags for files
+
+
+todo:
+
+upgrade tag input to foaf:person, us city, wordnet word, etc.
+
+see also:
+
+http://www.kanzaki.com/test/exif2rdf
+
+"""
+
+import os, sys, urllib
+from rdflib import Graph, URIRef, Namespace, RDF
+
+def read_or_create_graph(graph_filename):
+    graph = Graph()
+    try:
+        graph.load(graph_filename)
+    except OSError, e:
+        print "starting new graph at %r" % graph_filename
+    return graph
+
+graph_filename = "tags.rdf"
+foaf = Namespace("http://xmlns.com/foaf/0.1/")
+# these are like http://technorati.com/tag/ tags
+tagns = Namespace("http://photo.bigasterisk.com/tag/")
+
+graph = read_or_create_graph(graph_filename)
+
+imgfile_uri = URIRef("file://%s" % os.path.abspath(sys.argv[1]))
+
+graph.add((imgfile_uri, RDF.type, foaf['Image']))
+
+tag_uri = URIRef(tagns+urllib.quote_plus(" ".join(sys.argv[2:])))
+graph.add((imgfile_uri, foaf['topic'], tag_uri))
+
+graph.save(graph_filename)
+
