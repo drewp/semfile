@@ -16,16 +16,9 @@ http://www.kanzaki.com/test/exif2rdf
 
 import os, sys, urllib
 from rdflib import Graph, URIRef, Namespace, RDF
+from semfile import read_or_create_graph, graph_filename
 
-def read_or_create_graph(graph_filename):
-    graph = Graph()
-    try:
-        graph.load(graph_filename)
-    except OSError, e:
-        print "starting new graph at %r" % graph_filename
-    return graph
 
-graph_filename = "tags.rdf"
 foaf = Namespace("http://xmlns.com/foaf/0.1/")
 # these are like http://technorati.com/tag/ tags
 tagns = Namespace("http://photo.bigasterisk.com/tag/")

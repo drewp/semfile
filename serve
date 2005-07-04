@@ -1,0 +1,39 @@
+from twisted.application import internet, service
+from nevow import appserver, loaders, inevow, rend, static
+from rdflib import Graph, URIRef, Namespace, RDF
+
+from semfile import read_or_create_graph, graph_filename
+
+foaf = Namespace("http://xmlns.com/foaf/0.1/")
+
+class ContainerOfTags:
+    __implements__ = inevow.IContainer,
+
+    def __init__(self, img):
+        self.img = img
+
+    def child(self, context, name):
+        if name == 'tags':
+            graph = read_or_create_graph(graph_filename)
+            return graph.objects(self.img, foaf['topic'])
+
+class Root(rend.Page):
+    addSlash = True
+    docFactory = loaders.xmlfile('filelist.html')
+
+    def data_files(self, context, data):
+        graph = read_or_create_graph(graph_filename)
+        return [ContainerOfTags(i)
+                for i in graph.subjects(RDF.type, foaf['Image'])]
+
+    def render_file(self, context, data):
+        context.fillSlots('name', str(data.img))
+        return context.tag
+
+    def render_tag(self, context, data):
+        context.fillSlots('name', str(data))
+        return context.tag
+
+application = service.Application('semfile')
+webServer = internet.TCPServer(8005, appserver.NevowSite(Root()))
+webServer.setServiceParent(application)

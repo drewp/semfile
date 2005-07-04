@@ -1,0 +1,18 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+  <head><title>semfile browser</title></head>
+  <body>
+    Here are the files in the database:
+    <ul nevow:data="files" nevow:render="sequence">
+      <li nevow:pattern="item" nevow:render="file">
+        filename: <nevow:slot name="name" /><br/>
+        tags for this file: 
+        <ul nevow:data="tags" nevow:render="sequence">
+          <li nevow:pattern="item" nevow:render="tag">
+             tag: <nevow:slot name="name" />
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </body>
+</html>
