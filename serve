@@ -1,21 +1,48 @@
+
+"""
+to run:
+  twistd -noy serve
+then browse to http://localhost:8005
+
+
+a thumbnail example:
+  <rdf:Description rdf:about="http://www.wasab.dk/morten/2005/04/photos/sparqling-days/2/t/image-118-t.jpg">
+    <ns0:page xmlns:ns0="http://xmlns.com/foaf/0.1/" rdf:resource="http://www.wasab.dk/morten/2005/04/photos/sparqling-days/2/image-118.html"/>
+    <dcterms:modified xmlns:dcterms="http://purl.org/dc/terms/">2005-04-13T13:14:21Z</dcterms:modified>
+    <dc:date xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:rss="http://purl.org/rss/1.0/" xmlns:content="http://purl.org/rss/1.0/modules/content/">2005-04-13T13:14:21Z</dc:date>
+    <ns0:imageWidth xmlns:ns0="http://www.w3.org/2003/12/exif/ns#" rdf:datatype="http://www.w3.org/2001/XMLSchema#unsignedLong">100</ns0:imageWidth>
+    <rdf:type rdf:resource="http://xmlns.com/foaf/0.1/Image"/>
+    <rdf:type rdf:resource="http://purl.org/dc/dcmitype/Image"/>
+    <ns0:similarity_hash xmlns:ns0="http://purl.org/net/vocab/2003/11/photo#">3645132132f70f70f80f60f50f60f60f50f60</ns0:similarity_hash>
+    <ns0:extent xmlns:ns0="http://purl.org/dc/terms/" rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">15710</ns0:extent>
+    <ns0:imageHeight xmlns:ns0="http://www.w3.org/2003/12/exif/ns#" rdf:datatype="http://www.w3.org/2001/XMLSchema#unsignedLong">66</ns0:imageHeight>
+    <dcterms:created xmlns:dcterms="http://purl.org/dc/terms/">2005-04-12T23:11:29Z</dcterms:created>
+    <dc:date xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:rss="http://purl.org/rss/1.0/" xmlns:content="http://purl.org/rss/1.0/modules/content/">2005-04-12T23:11:29Z</dc:date>
+    <ns0:original xmlns:ns0="http://xmlns.com/foaf/0.1/" rdf:resource="http://www.wasab.dk/morten/2005/04/photos/sparqling-days/2/t/image-118.jpg"/>
+    <ns0:format xmlns:ns0="http://purl.org/dc/elements/1.1/">image/jpeg</ns0:format>
+  </rdf:Description>
+
+
+"""
+
 from twisted.application import internet, service
 from nevow import appserver, loaders, inevow, rend, static
 from rdflib import Graph, URIRef, Namespace, RDF
 
-from semfile import read_or_create_graph, graph_filename
+from semfile import read_or_create_graph, graph_filename, all_documents
 
 foaf = Namespace("http://xmlns.com/foaf/0.1/")
 
-class ContainerOfTags:
+class DocumentWithTopics:
     __implements__ = inevow.IContainer,
 
-    def __init__(self, img):
-        self.img = img
+    def __init__(self, doc, rdftype):
+        self.doc, self.rdftype = doc, rdftype
 
     def child(self, context, name):
-        if name == 'tags':
+        if name == 'topics':
             graph = read_or_create_graph(graph_filename)
-            return graph.objects(self.img, foaf['topic'])
+            return graph.objects(self.doc, foaf['topic'])
 
 class Root(rend.Page):
     addSlash = True
@@ -23,11 +50,12 @@ class Root(rend.Page):
 
     def data_files(self, context, data):
         graph = read_or_create_graph(graph_filename)
-        return [ContainerOfTags(i)
-                for i in graph.subjects(RDF.type, foaf['Image'])]
+        for s in all_documents(graph):
+            t = graph.value(subject=s, predicate=RDF.type)
+            yield DocumentWithTopics(s,t)
 
     def render_file(self, context, data):
-        context.fillSlots('name', str(data.img))
+        context.fillSlots('name', "%s (%s)" % (data.doc, data.rdftype))
         return context.tag
 
     def render_tag(self, context, data):
