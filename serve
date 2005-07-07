@@ -45,8 +45,11 @@ class DocumentWithTopics:
             return graph.objects(self.doc, foaf['topic'])
 
 class Root(rend.Page):
-    addSlash = True
     docFactory = loaders.xmlfile('filelist.html')
+    def childFactory(self, ctx, name):
+        if name in ['graph','wz_jsgraphics.js']:
+            return static.File(name, defaultType="text/html")
+        return docFactory#Tags(name)
 
     def data_files(self, context, data):
         graph = read_or_create_graph(graph_filename)
