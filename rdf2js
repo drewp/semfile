@@ -170,15 +170,24 @@ wr("""digraph G {
 """)
 for s,p,o in graph.triples((None,None,None)):
     weight = 1
-    if p == RDF.type:
-        weight = 3
+        
     addr,netloc,path,params,query,frag = urlparse.urlparse(s)
-    node_html[str(s)] = '<img src="%s" alt="%s" width=120 height=100>' % (s,s)
+    if (p, o) == (RDF.type, Namespace("http://xmlns.com/foaf/0.1/")['Image']):
+        imgpath = s
+        if imgpath == "file:///my/pic/digicam/seattle/IMG_0653.JPG":
+            imgpath = "IMG_0653-small.JPG"
+        node_html[str(s)] = ('<img src="%s" alt="%s" width=120 height=100>' %
+                             (imgpath,s))
+        continue # no type edge/node needed
+    
+    if str(s) not in node_html:
+        node_html[str(s)] = s
 
     addr,netloc,path,params,query,frag = urlparse.urlparse(o)
     if p == Namespace("http://xmlns.com/foaf/0.1/")['topic']:
         node_html[str(o)] = "Topic:<br/>" + path.split('/')[-1]
-    else:
+
+    if str(o) not in node_html:
         node_html[str(o)] = o
         
     wr("  %s\n" %
@@ -191,6 +200,6 @@ if opts.show_dot:
 
 jsr = Jsrender()
 
-DotToJs(os.popen('dot -Tplain %s' % dotfile.name), jsr, node_html)
+DotToJs(os.popen('neato -Tplain %s' % dotfile.name), jsr, node_html)
         
 open(opts.output_js, 'w').write(jsr.output())

@@ -47,7 +47,7 @@ class DocumentWithTopics:
 class Root(rend.Page):
     docFactory = loaders.xmlfile('filelist.html')
     def childFactory(self, ctx, name):
-        if name in ['graph','wz_jsgraphics.js']:
+        if name in ['tags.rdf','graph','wz_jsgraphics.js','IMG_0653-small.JPG']:
             return static.File(name, defaultType="text/html")
         return docFactory#Tags(name)
 
