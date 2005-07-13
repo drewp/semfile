@@ -2,6 +2,8 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en" xmlns:nevow="http://nevow.com/ns/nevow/0.1">
   <head><title>semfile browser</title></head>
   <body>
+<a href="/graph">see a javascript graph of this rdf</a>
+<p/>
     Here are the files in the database:
     <ul nevow:data="files" nevow:render="sequence">
       <li nevow:pattern="item" nevow:render="file">
@@ -14,5 +16,6 @@
         </ul>
       </li>
     </ul>
+source to semfile is available: "darcs get http://darcs.bigasterisk.com/semfile".
   </body>
 </html>

@@ -1,4 +1,21 @@
 
+"""
+related:
+
+http://crschmidt.net/semweb/wordnet/sparql
+
+http://xmlns.com/foaf/0.1/
+
+http://www.kanzaki.com/test/exif2rdf?u=http://kanzaki.com/works/2003/imagedesc/0817.jpg&xsl=on
+
+http://dev.w3.org/cvsweb/~checkout~/java/classes/org/w3c/rdf/examples/ARPServlet.java?rev=1.79&content-type=text/plain
+the validator's graphviz interface source code
+
+http://esw.w3.org/topic/ImageDescription
+
+"""
+
+
 from rdflib import Graph, RDF
 
 def read_or_create_graph(graph_filename):

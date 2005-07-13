@@ -11,40 +11,48 @@ probably a great idea, though, so maybe I can reuse a lot.
 """
 
 from __future__ import division
-import sys, tempfile, os, shlex
-from rdflib import Graph
+import sys, tempfile, os, shlex, urlparse
+from rdflib import Graph, RDF
 from optparse import OptionParser
+
+def css_attrs(**kw):
+    return "; ".join(["%s: %s" % (k.replace('_','-'),v) for k,v in kw.items()])
 
 class Jsrender:
     # http://www.decafbad.com/blog/2005/07/02/drag_the_boxes_stretch_the_lines
 
-    offset = 50,50 # pixels from top-left
-    scale = 50,80 # pixels per graphviz unit
+    scale = 120,120 # pixels per graphviz unit
     def __init__(self):
         self.draw_cmds = ""
         self.html_cmds = ""
 
-    def worldx(self, gx, width=False, _idx=0):
+    def worldx(self, gx, _idx=0):
         wx = gx * self.scale[_idx]
-        if not width:
-            wx = wx + self.offset[_idx]
         return wx
-    def worldy(self, gy, height=False):
-        return self.worldx(gy, height, 1)
+    def worldy(self, gy):
+        return self.worldx(gy, 1)
 
     def rect(self,x,y,w,h):
         """x,y is at the center"""
         self.draw_cmds += "jg.drawRect(%s,%s,%s,%s);\n" % (
-            self.worldx(x-width/2),
-            self.worldy(y-height/2),
-            self.worldx(width,True),
-            self.worldy(height,True))
-    def label(self,x,y,text,w=None,h=None,textAlign=None):
-        """dont know where x,y is"""
-        more = ""
+            self.worldx(x - w / 2),
+            self.worldy(y - h / 2),
+            self.worldx(w),
+            self.worldy(h))
+        
+    def label(self, x, y, text, w=None, h=None, textAlign=None, html=""):
+        attrs = dict(position="absolute",
+                     left="%spx" % self.worldx(x),
+                     top="%spx" % self.worldy(y),
+                     z_index=2)
         if w is not None:
-            more = "width:%spx;height=%spx;text-align:%s;" % (self.worldx(w,True),self.worldy(h,True),textAlign)
-        self.html_cmds += '<div style="position:absolute;left:%spx;top:%spx;%s;z-index:2;">%s</div>\n' % (self.worldx(x),self.worldy(y),more,text)
+            attrs.update(dict(word_wrap="break-word",
+                            width="%spx" % self.worldx(w),
+                            height="%spx" % self.worldy(h),
+                            text_align=textAlign))
+
+        self.html_cmds += ('<div style="%s">%s%s</div>\n' %
+                           (css_attrs(**attrs), text, html))
 
     def polyline(self,xy):
         xs = ",".join([str(self.worldx(float(c))) for c in xy[::2]])
@@ -59,7 +67,7 @@ class Jsrender:
  <script type="text/javascript">
   <!--
    var jg = new jsGraphics();
-   %(draw_cmds)s
+%(draw_cmds)s
    jg.paint();
   //-->
  </script>
@@ -68,65 +76,108 @@ class Jsrender:
 """ % self.__dict__
 
 
+class DotParse:
+    """parse output from 'dot -Tplain' etc
+
+    format at http://www.graphviz.org/cvs/doc/info/output.html#d:plain
+    
+    should i use SVG? i didn't notice that choice before
+    """
+    def __init__(self,infile):
+        for line in infile:
+            words = shlex.split(line)
+            if words[0] == "graph":
+                pass
+            elif words[0] == "node":
+                name,x,y,width,height,label,style,shape,col,fillcol = words[1:]
+                x,y,width,height = map(float, (x,y,width,height))
+                self.node(name, x, y, width, height)                
+            elif words[0] == "edge":
+                tail,head,n = words[1:4]
+                n = int(n)
+                xy = map(float,words[4:4 + n * 2])
+                if len(words) > 4 + n * 2 + 3: # untested
+                    label,xl,yl = words[4 + n * 2:4 + n * 2 + 3]
+                else:
+                    label,xl,yl = None,None,None
+                style,color = words[-2:]
+                self.edge(label, xy, xl, yl)
+            elif words[0] == "stop":
+                break
+            else:
+                raise ValueError("cannot parse dot line %r" % line)
+        
+    def node(self, name, x, y, width, height):
+        raise NotImplementedError
+
+    def edge(self, label, xy):
+        raise NotImplementedError
+        
+class DotToJs(DotParse):
+    def __init__(self, infile, jsrender, node_html):
+        self.jsr, self.node_html = jsrender, node_html
+        DotParse.__init__(self, infile)
+        
+    def node(self, name, x, y, width, height):
+        self.jsr.rect(x, y, width, height)
+        self.jsr.label(x - width / 2, y - height / 2, name,
+                       width, height, "center", node_html.get(name,""))
+
+    def edge(self, label, xy, xl, yl):
+        self.jsr.polyline(xy)
+        self.jsr.label(xy[-2],xy[-1],">") # arrowheads :)
+        if label is not None:
+            self.jsr.label(float(xl), float(yl), label)
+
+def graphviz_node(s, e, **attrs):
+    def no_unicode(s):
+        if isinstance(s,basestring):
+            s = '"%s"' % str(s).encode('string-escape')
+        return s
+    attrlist = ", ".join([("%s=%s" % (k,no_unicode(v)))
+                          for k,v in attrs.items()])
+    return '  "%s" -> "%s" [%s]' % (s,e,attrlist)
+
+
 parser = OptionParser()
 parser.add_option("-i","--input-rdf",help="rdf file to read")
 parser.add_option("-o","--output-js",help="js file to write")
+parser.add_option("--show-dot", action="store_true",
+                  help="print the input to graphviz")
 opts,args = parser.parse_args()
 
 graph = Graph()
 graph.load(opts.input_rdf)
 
-dotfile = tempfile.NamedTemporaryFile()
+node_html = {} # urlstr : path
+
+dotfile = tempfile.NamedTemporaryFile(prefix="rdf2js_graph_",suffix=".dot")
 wr = dotfile.write
 # format at http://www.graphviz.org/cvs/doc/info/lang.html
+# attrs at http://www.graphviz.org/cvs/doc/info/attrs.html
 wr("""digraph G {
 
-// for dotty
-  rankdir=LR;
-  ratio=auto;
-  mclimit=100; // mincross iterations
+  graph [margin=2, rankdir=LR, ratio="auto", mclimit=100, epsilon=.1];
+  node [fixedsize=true, width=1, height=1];
+  edge [len=100];
 
-// for neato
-  epsilon=.1;
-  overlap=false;
-  len=4.1;
 """)
 for s,p,o in graph.triples((None,None,None)):
-    wr('  "%s" -> "%s" [label="%s"]\n' % (s,o,p))
+    weight = 1
+    if p == RDF.type:
+        weight = 3
+    addr,netloc,path,params,query,frag = urlparse.urlparse(s)
+    node_html[str(s)] = '<img src="%s" width=120 height=100>' % s
+    wr("  %s\n" %
+       graphviz_node(s, o, label=p, weight=weight))
 wr("}\n")
 dotfile.flush()
 
+if opts.show_dot:
+    print open(dotfile.name).read()
+
 jsr = Jsrender()
 
-for line in os.popen('dot -Tplain %s' % dotfile.name):
-    # format at http://www.graphviz.org/cvs/doc/info/output.html#d:plain
-    words = shlex.split(line)
-    if words[0] == "graph":
-        pass
-    elif words[0] == "node":
-        name,x,y,width,height,label,style,shape,color,fillcolor = words[1:]
-        x,y,width,height = map(float, (x,y,width,height))
-        jsr.rect(x,y,width,height)
-        jsr.label(x - width / 2, y - height / 2, name,
-                  width, height, "center")
-
-    elif words[0] == "edge":
-        tail,head,n = words[1:4]
-        n = int(n)
-        xy = map(float,words[4:4 + n * 2])
-        if len(words) > 4 + n * 2 + 3: # untested
-            label,xl,yl = words[4 + n * 2:4 + n * 2 + 3]
-        else:
-            label,xl,yl = None,None,None
-        style,color = words[-2:]
-        jsr.polyline(xy)
-        jsr.label(xy[-2],xy[-1],">") # arrowheads :)
-        if label is not None:
-            jsr.label(float(xl), float(yl), label)
-    elif words[0] == "stop":
-        break
-    else:
-        raise ValueError("cannot parse dot line %r" % line)
+DotToJs(os.popen('dot -Tplain %s' % dotfile.name), jsr, node_html)
         
 open(opts.output_js, 'w').write(jsr.output())
-
