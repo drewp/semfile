@@ -8,18 +8,21 @@ different because I want to recapture the graphviz layout and then do
 additional style on the results. Doing the style as more rdf is
 probably a great idea, though, so maybe I can reuse a lot.
 
+related:
+http://www.decafbad.com/blog/2005/07/02/drag_the_boxes_stretch_the_lines
+
 """
 
 from __future__ import division
 import sys, tempfile, os, shlex, urlparse
-from rdflib import Graph, RDF
+from rdflib import Graph, RDF, Namespace
 from optparse import OptionParser
 
 def css_attrs(**kw):
     return "; ".join(["%s: %s" % (k.replace('_','-'),v) for k,v in kw.items()])
 
 class Jsrender:
-    # http://www.decafbad.com/blog/2005/07/02/drag_the_boxes_stretch_the_lines
+    # http://www.walterzorn.com/jsgraphics/jsgraphics_e.htm
 
     scale = 120,120 # pixels per graphviz unit
     def __init__(self):
@@ -40,7 +43,7 @@ class Jsrender:
             self.worldx(w),
             self.worldy(h))
         
-    def label(self, x, y, text, w=None, h=None, textAlign=None, html=""):
+    def label(self, x, y, w=None, h=None, textAlign=None, html=""):
         attrs = dict(position="absolute",
                      left="%spx" % self.worldx(x),
                      top="%spx" % self.worldy(y),
@@ -51,13 +54,15 @@ class Jsrender:
                             height="%spx" % self.worldy(h),
                             text_align=textAlign))
 
-        self.html_cmds += ('<div style="%s">%s%s</div>\n' %
-                           (css_attrs(**attrs), text, html))
+        self.html_cmds += ('<div style="%s">%s</div>\n' %
+                           (css_attrs(**attrs), html))
 
     def polyline(self,xy):
-        xs = ",".join([str(self.worldx(float(c))) for c in xy[::2]])
-        ys = ",".join([str(self.worldy(float(c))) for c in xy[1::2]])
-        self.draw_cmds += "jg.drawPolyline(new Array(%s), new Array(%s));\n" % (xs,ys)
+        def jsarray(l,mapfunc):
+            return "new Array(%s)" % ",".join([str(mapfunc(c)) for c in l])
+        xs = jsarray(xy[::2], lambda x: self.worldx(float(x)))
+        ys = jsarray(xy[1::2], lambda y: self.worldy(float(y)))
+        self.draw_cmds += "jg.drawPolyline(%s,%s);\n" % (xs, ys)
 
     def output(self):
         return """
@@ -89,7 +94,7 @@ class DotParse:
             if words[0] == "graph":
                 pass
             elif words[0] == "node":
-                name,x,y,width,height,label,style,shape,col,fillcol = words[1:]
+                name,x,y,width,height = words[1:6]
                 x,y,width,height = map(float, (x,y,width,height))
                 self.node(name, x, y, width, height)                
             elif words[0] == "edge":
@@ -120,14 +125,15 @@ class DotToJs(DotParse):
         
     def node(self, name, x, y, width, height):
         self.jsr.rect(x, y, width, height)
-        self.jsr.label(x - width / 2, y - height / 2, name,
+        self.jsr.label(x - width / 2, y - height / 2, 
                        width, height, "center", node_html.get(name,""))
 
     def edge(self, label, xy, xl, yl):
         self.jsr.polyline(xy)
-        self.jsr.label(xy[-2],xy[-1],">") # arrowheads :)
+        self.jsr.label(xy[-2],xy[-1],html=">") # arrowheads :)
         if label is not None:
-            self.jsr.label(float(xl), float(yl), label)
+            self.jsr.label(float(xl), float(yl),
+                           html=label)
 
 def graphviz_node(s, e, **attrs):
     def no_unicode(s):
@@ -167,7 +173,14 @@ for s,p,o in graph.triples((None,None,None)):
     if p == RDF.type:
         weight = 3
     addr,netloc,path,params,query,frag = urlparse.urlparse(s)
-    node_html[str(s)] = '<img src="%s" width=120 height=100>' % s
+    node_html[str(s)] = '<img src="%s" alt="%s" width=120 height=100>' % (s,s)
+
+    addr,netloc,path,params,query,frag = urlparse.urlparse(o)
+    if p == Namespace("http://xmlns.com/foaf/0.1/")['topic']:
+        node_html[str(o)] = "Topic:<br/>" + path.split('/')[-1]
+    else:
+        node_html[str(o)] = o
+        
     wr("  %s\n" %
        graphviz_node(s, o, label=p, weight=weight))
 wr("}\n")
