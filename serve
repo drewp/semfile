@@ -21,10 +21,11 @@ a thumbnail example:
     <ns0:original xmlns:ns0="http://xmlns.com/foaf/0.1/" rdf:resource="http://www.wasab.dk/morten/2005/04/photos/sparqling-days/2/t/image-118.jpg"/>
     <ns0:format xmlns:ns0="http://purl.org/dc/elements/1.1/">image/jpeg</ns0:format>
   </rdf:Description>
+  "
 
 
 """
-
+import re, os
 from twisted.application import internet, service
 from nevow import appserver, loaders, inevow, rend, static
 from rdflib import Graph, URIRef, Namespace, RDF
@@ -47,8 +48,12 @@ class DocumentWithTopics:
 class Root(rend.Page):
     docFactory = loaders.xmlfile('filelist.html')
     def childFactory(self, ctx, name):
-        if name in ['tags.rdf','graph','wz_jsgraphics.js','IMG_0653-small.JPG']:
+        if name in ['tags.rdf','graph','wz_jsgraphics.js']:
             return static.File(name, defaultType="text/html")
+
+        if name == "thumbs":
+            return static.File(name)
+            
         return docFactory#Tags(name)
 
     def data_files(self, context, data):
