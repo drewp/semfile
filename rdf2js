@@ -11,15 +11,23 @@ probably a great idea, though, so maybe I can reuse a lot.
 related:
 http://www.decafbad.com/blog/2005/07/02/drag_the_boxes_stretch_the_lines
 
+todo:
+use namespaces in the graph labels, and put a key to the side. the
+labels should still be links to their full uris
+
 """
 
 from __future__ import division
-import sys, tempfile, os, shlex, urlparse
+import sys, tempfile, os, shlex, urlparse, sets
+from md5 import md5
 from rdflib import Graph, RDF, Namespace
 from optparse import OptionParser
+sys.path.append("/my/site/quickwit")
+import resizeimg
 
 def css_attrs(**kw):
-    return "; ".join(["%s: %s" % (k.replace('_','-'),v) for k,v in kw.items()])
+    return "; ".join(["%s: %s" % (k.replace('_','-'),v)
+                      for k,v in kw.items() if v is not None])
 
 class Jsrender:
     # http://www.walterzorn.com/jsgraphics/jsgraphics_e.htm
@@ -43,11 +51,15 @@ class Jsrender:
             self.worldx(w),
             self.worldy(h))
         
-    def label(self, x, y, w=None, h=None, textAlign=None, html=""):
+    def label(self, x, y, w=None, h=None, textAlign=None, html="",
+              background=None, border=None):
         attrs = dict(position="absolute",
                      left="%spx" % self.worldx(x),
                      top="%spx" % self.worldy(y),
-                     z_index=2)
+                     z_index=2,
+                     border=border,
+                     background=background,
+                     )
         if w is not None:
             attrs.update(dict(word_wrap="break-word",
                             width="%spx" % self.worldx(w),
@@ -68,7 +80,7 @@ class Jsrender:
         return """
 <html><head>
 <script type="text/javascript" src="wz_jsgraphics.js"></script>
-</head><body>
+</head><body bgcolor=#cdcdb4>
  <script type="text/javascript">
   <!--
    var jg = new jsGraphics();
@@ -106,7 +118,8 @@ class DotParse:
                 else:
                     label,xl,yl = None,None,None
                 style,color = words[-2:]
-                self.edge(label, xy, xl, yl)
+                if style != "invis":
+                    self.edge(label, xy, xl, yl)
             elif words[0] == "stop":
                 break
             else:
@@ -124,25 +137,57 @@ class DotToJs(DotParse):
         DotParse.__init__(self, infile)
         
     def node(self, name, x, y, width, height):
-        self.jsr.rect(x, y, width, height)
         self.jsr.label(x - width / 2, y - height / 2, 
-                       width, height, "center", node_html.get(name,""))
+                       width, height, "center", node_html.get(name,""),
+                       background="white", border="1px solid")
 
     def edge(self, label, xy, xl, yl):
         self.jsr.polyline(xy)
         self.jsr.label(xy[-2],xy[-1],html=">") # arrowheads :)
+        label = '<a href="%s">%s</a>' % (label, label[label.rfind('/')+1:])
         if label is not None:
             self.jsr.label(float(xl), float(yl),
                            html=label)
 
-def graphviz_node(s, e, **attrs):
-    def no_unicode(s):
-        if isinstance(s,basestring):
-            s = '"%s"' % str(s).encode('string-escape')
-        return s
-    attrlist = ", ".join([("%s=%s" % (k,no_unicode(v)))
-                          for k,v in attrs.items()])
-    return '  "%s" -> "%s" [%s]' % (s,e,attrlist)
+
+class GraphvizOut:
+    # format at http://www.graphviz.org/cvs/doc/info/lang.html
+    # attrs at http://www.graphviz.org/cvs/doc/info/attrs.html
+    def __init__(self, write_func, digraph=False):
+        self.wr = write_func
+        self.digraph = digraph
+        graph_keyword = "graph"
+        if digraph:
+            graph_keyword = "digraph"
+        self.wr("""%s G {
+
+  graph [margin=2, rankdir=LR, ratio="auto", mclimit=100, epsilon=.00001,
+         headclip=true, tailclip=true, packmode="node"];
+  node [fixedsize=true, width=1, height=1];
+  edge [len=2];
+
+""" % (graph_keyword))
+
+    def _fmtattrs(self, attrs):
+        def no_unicode(s):
+            if isinstance(s,basestring):
+                s = '"%s"' % str(s).encode('string-escape')
+            return s
+        return ", ".join([("%s=%s" % (k,no_unicode(v)))
+                          for k,v in attrs.items()])        
+
+    def edge(self, s, e, **attrs):
+        connector = "--"
+        if self.digraph:
+            connector = "->"
+        self.wr('  "%s" %s "%s" [%s]\n' % (s, connector, e,
+                                           self._fmtattrs(attrs)))
+
+    def node(self, n, **attrs):
+        self.wr('  "%s" [%s]\n' % (n, self._fmtattrs(attrs)))
+
+    def close(self):
+        self.wr("}\n")
 
 
 parser = OptionParser()
@@ -158,25 +203,30 @@ graph.load(opts.input_rdf)
 node_html = {} # urlstr : path
 
 dotfile = tempfile.NamedTemporaryFile(prefix="rdf2js_graph_",suffix=".dot")
-wr = dotfile.write
-# format at http://www.graphviz.org/cvs/doc/info/lang.html
-# attrs at http://www.graphviz.org/cvs/doc/info/attrs.html
-wr("""digraph G {
 
-  graph [margin=2, rankdir=LR, ratio="auto", mclimit=100, epsilon=.1];
-  node [fixedsize=true, width=1, height=1];
-  edge [len=100];
+if 1:
+    layout_prog = "neato"
+    digraph = False
+else:
+    layout_prog = "dot"
+    digraph = True
+go = GraphvizOut(dotfile.write, digraph)
 
-""")
+
+edge_clique = sets.Set()
+
 for s,p,o in graph.triples((None,None,None)):
     weight = 1
         
     addr,netloc,path,params,query,frag = urlparse.urlparse(s)
     if (p, o) == (RDF.type, Namespace("http://xmlns.com/foaf/0.1/")['Image']):
-        imgpath = s
-        if imgpath == "file:///my/pic/digicam/seattle/IMG_0653.JPG":
-            imgpath = "IMG_0653-small.JPG"
-        node_html[str(s)] = ('<img src="%s" alt="%s" width=120 height=100>' %
+
+        thumb = os.path.join("thumbs",
+                             md5(s).hexdigest() + os.path.splitext(s)[1])
+        resizeimg.writethumbnail(s[7:], thumb)
+        imgpath = thumb
+        go.node(s, width=200/120, height=200/120)
+        node_html[str(s)] = ('<img src="%s" alt="%s">' %
                              (imgpath,s))
         continue # no type edge/node needed
     
@@ -185,21 +235,32 @@ for s,p,o in graph.triples((None,None,None)):
 
     addr,netloc,path,params,query,frag = urlparse.urlparse(o)
     if p == Namespace("http://xmlns.com/foaf/0.1/")['topic']:
+        go.node(o, width=.6, height=.3)
         node_html[str(o)] = "Topic:<br/>" + path.split('/')[-1]
+        edge_clique.add(o)
 
     if str(o) not in node_html:
         node_html[str(o)] = o
-        
-    wr("  %s\n" %
-       graphviz_node(s, o, label=p, weight=weight))
-wr("}\n")
+
+    go.edge(s, o, label=p, weight=weight)
+
+
+for e in edge_clique:
+    for e2 in edge_clique:
+        if e2 != e:
+            go.edge(e, e2, weight=2, style="invis")
+
+go.close()
 dotfile.flush()
+
+print open(dotfile.name).read()
 
 if opts.show_dot:
     print open(dotfile.name).read()
 
 jsr = Jsrender()
 
-DotToJs(os.popen('neato -Tplain %s' % dotfile.name), jsr, node_html)
+DotToJs(os.popen('%s -Tplain %s' % (layout_prog, dotfile.name)),
+        jsr, node_html)
         
 open(opts.output_js, 'w').write(jsr.output())
