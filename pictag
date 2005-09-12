@@ -14,14 +14,11 @@ http://www.kanzaki.com/test/exif2rdf
 
 """
 
-import os, sys, urllib
-from rdflib import Graph, URIRef, Namespace, RDF
-from semfile import read_or_create_graph, graph_filename
+import os, sys, urllib, time
+from rdflib import Graph, URIRef, Namespace, RDF, Literal
+from rdflib.util import date_time
+from semfile import read_or_create_graph, graph_filename, FOAF, TAG, DC
 
-
-foaf = Namespace("http://xmlns.com/foaf/0.1/")
-# these are like http://technorati.com/tag/ tags
-tagns = Namespace("http://photo.bigasterisk.com/tag/")
 
 graph = read_or_create_graph(graph_filename)
 

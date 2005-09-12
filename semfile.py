@@ -16,7 +16,7 @@ http://esw.w3.org/topic/ImageDescription
 """
 
 
-from rdflib import Graph, RDF
+from rdflib import Graph, RDF, Namespace
 
 def read_or_create_graph(graph_filename):
     # someday this will probably return a proxy to a shared, networked graph
@@ -41,3 +41,8 @@ def all_documents(graph):
     ## [06:12:16] <eikeon>         allPeople.add(person)
     
     return graph.subjects(predicate=RDF.type)
+
+FOAF = Namespace("http://xmlns.com/foaf/0.1/")
+# these are like http://technorati.com/tag/ tags
+TAG = Namespace("http://photo.bigasterisk.com/tag/")
+DC = Namespace("http://purl.org/dc/terms/")
