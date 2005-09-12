@@ -1,0 +1,43 @@
+#!/usr/bin/python
+
+""" removes pics from the db. useful for undoing a recent
+add. interactive console ui.
+"""
+
+from rdflib.util import date_time, parse_date_time
+from semfile import read_or_create_graph, graph_filename, FOAF, TAG, DC
+
+max_gap_time = 5
+
+graph = read_or_create_graph(graph_filename)
+
+issue_times = {} # uri : time
+for s,o in graph.subject_objects(predicate=DC['issued']):
+    issue_times[s] = parse_date_time(o)
+most_recent = max(issue_times.values())
+
+oldest_recent = most_recent
+recently_added = []
+for uri,t in issue_times.items():
+    if t > oldest_recent - max_gap_time:
+        recently_added.append((t,uri))
+        oldest_recent = min(t, oldest_recent)
+recently_added.sort()
+
+print ("The most recently-issued resource in the graph was issued at %s" %
+       date_time(most_recent, local_time_zone=True))
+print "Here are all the resources issued close to that one (gaps between times"
+print "do not exceed %s seconds):" % max_gap_time
+for t,uri in recently_added:
+    print "  %s   %s" % (date_time(t, local_time_zone=True), uri)
+
+ans = raw_input("Remove those %s items [y]? " % len(recently_added))
+if ans not in ['','y','Y']:
+    raise SystemExit("no changes made")
+
+for t,uri in recently_added:
+    for stmt in graph.triples((uri,None,None)):
+        graph.remove(stmt)
+
+graph.save(graph_filename)
+    
