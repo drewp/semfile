@@ -24,10 +24,17 @@ graph = read_or_create_graph(graph_filename)
 
 imgfile_uri = URIRef("file://%s" % os.path.abspath(sys.argv[1]))
 
-graph.add((imgfile_uri, RDF.type, foaf['Image']))
 
-tag_uri = URIRef(tagns+urllib.quote_plus(" ".join(sys.argv[2:])))
-graph.add((imgfile_uri, foaf['topic'], tag_uri))
+img_statement = (imgfile_uri, RDF.type, FOAF['Image'])
+if graph.triples(img_statement):
+    graph.add(img_statement)
+    graph.add((imgfile_uri,
+               DC['issued'],
+               Literal(date_time(local_time_zone=True))))
+
+for tag in sys.argv[2:]:
+    tag_uri = URIRef(TAG[urllib.quote_plus(tag)])
+    graph.add((imgfile_uri, FOAF['topic'], tag_uri))
 
 graph.save(graph_filename)
 
