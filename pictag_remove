@@ -14,7 +14,10 @@ graph = read_or_create_graph(graph_filename)
 issue_times = {} # uri : time
 for s,o in graph.subject_objects(predicate=DC['issued']):
     issue_times[s] = parse_date_time(o)
-most_recent = max(issue_times.values())
+try:
+    most_recent = max(issue_times.values())
+except ValueError:
+    raise SystemExit("no issue times found in graph")
 
 oldest_recent = most_recent
 recently_added = []

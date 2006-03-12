@@ -50,6 +50,8 @@ class Root(rend.Page):
     def childFactory(self, ctx, name):
         if name in ['tags.rdf','graph','wz_jsgraphics.js']:
             return static.File(name, defaultType="text/html")
+	if name in ['boxar-tags.png']:
+            return static.File(name)
 
         if name == "thumbs":
             return static.File(name)
