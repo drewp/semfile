@@ -14,27 +14,28 @@ http://www.kanzaki.com/test/exif2rdf
 
 """
 
-import os, sys, urllib, time
+import os, sys, urllib, time, socket, mimetypes
 from rdflib import Graph, URIRef, Namespace, RDF, Literal
 from rdflib.util import date_time
-from semfile import read_or_create_graph, graph_filename, FOAF, TAG, DC
+from semfile import read_or_create_graph, close_graph, FOAF, TAG, DC, \
+     uriForFile, foafType
 
+graph = read_or_create_graph()
 
-graph = read_or_create_graph(graph_filename)
+file_uri = uriForFile(sys.argv[1])
 
-imgfile_uri = URIRef("file://%s" % os.path.abspath(sys.argv[1]))
-
-
-img_statement = (imgfile_uri, RDF.type, FOAF['Image'])
-if graph.triples(img_statement):
-    graph.add(img_statement)
-    graph.add((imgfile_uri,
+if not list(graph.triples((file_uri, None, None))):
+    graph.add((file_uri,
                DC['issued'],
                Literal(date_time(local_time_zone=True))))
 
+rdftype = foafType(sys.argv[1])
+if rdftype is not None:
+    graph.add((file_uri, RDF.type, rdftype))
+
 for tag in sys.argv[2:]:
     tag_uri = URIRef(TAG[urllib.quote_plus(tag)])
-    graph.add((imgfile_uri, FOAF['topic'], tag_uri))
+    graph.add((file_uri, FOAF['topic'], tag_uri))
 
-graph.save(graph_filename)
+close_graph(graph)
 

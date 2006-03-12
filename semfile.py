@@ -15,10 +15,19 @@ http://esw.w3.org/topic/ImageDescription
 
 """
 
+import socket, os, mimetypes
+from rdflib import Graph, RDF, Namespace, URIRef
+from twisted.python.util import sibpath
 
-from rdflib import Graph, RDF, Namespace
+FOAF = Namespace("http://xmlns.com/foaf/0.1/")
+# these are like http://technorati.com/tag/ tags
+TAG = Namespace("http://photo.bigasterisk.com/tag/")
+DC = Namespace("http://purl.org/dc/terms/")
 
-def read_or_create_graph(graph_filename):
+
+graph_filename = sibpath(__file__, "tags.rdf")
+
+def read_or_create_graph():
     # someday this will probably return a proxy to a shared, networked graph
     graph = Graph()
     try:
@@ -27,7 +36,9 @@ def read_or_create_graph(graph_filename):
         print "starting new graph at %r" % graph_filename
     return graph
 
-graph_filename = "tags.rdf"
+def close_graph(graph):
+    graph.serialize(graph_filename)
+
 
 def all_documents(graph):
     # this is hardly correct. what i want is all S with (S, RDF.type,
@@ -42,7 +53,21 @@ def all_documents(graph):
     
     return graph.subjects(predicate=RDF.type)
 
-FOAF = Namespace("http://xmlns.com/foaf/0.1/")
-# these are like http://technorati.com/tag/ tags
-TAG = Namespace("http://photo.bigasterisk.com/tag/")
-DC = Namespace("http://purl.org/dc/terms/")
+def uriForFile(path):
+    host = socket.getfqdn()
+    if "." not in host:
+        raise ValueError("set your FQDN to be FQ (maybe in /etc/hosts)")
+    return URIRef("file://%s/%s" %
+                  (host, os.path.abspath(path).strip("/")))
+
+def foafType(path):
+    """
+    >>> foafType('foo.jpg')
+    FOAF['Image']
+    >>> foafType('a/mystery')
+    None
+    """
+    mimetype, encoding = mimetypes.guess_type(path.lower())
+    if mimetype is not None and mimetype.startswith("image/"):
+        return FOAF['Image']
+

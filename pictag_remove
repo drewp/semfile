@@ -5,11 +5,11 @@ add. interactive console ui.
 """
 
 from rdflib.util import date_time, parse_date_time
-from semfile import read_or_create_graph, graph_filename, FOAF, TAG, DC
+from semfile import read_or_create_graph, close_graph, FOAF, TAG, DC
 
 max_gap_time = 5
 
-graph = read_or_create_graph(graph_filename)
+graph = read_or_create_graph()
 
 issue_times = {} # uri : time
 for s,o in graph.subject_objects(predicate=DC['issued']):
@@ -42,5 +42,5 @@ for t,uri in recently_added:
     for stmt in graph.triples((uri,None,None)):
         graph.remove(stmt)
 
-graph.save(graph_filename)
+close_graph(graph)
     

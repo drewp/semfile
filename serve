@@ -56,7 +56,7 @@ class Root(rend.Page):
         if name == "thumbs":
             return static.File(name)
             
-        return docFactory#Tags(name)
+        return self.docFactory#Tags(name)
 
     def data_files(self, context, data):
         graph = read_or_create_graph(graph_filename)
