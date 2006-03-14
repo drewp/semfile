@@ -1,0 +1,22 @@
+#!/usr/bin/python
+
+from __future__ import division
+import sys
+from rdflib import Graph, RDF, Namespace
+from optparse import OptionParser
+import rdf2js
+
+parser = OptionParser()
+parser.add_option("-i","--input-rdf",help="rdf file to read")
+parser.add_option("-o","--output-js",help="js file to write")
+parser.add_option("--show-dot", action="store_true",
+                  help="print the input to graphviz")
+opts,args = parser.parse_args()
+
+graph = Graph()
+graph.load(opts.input_rdf)
+
+out = rdf2js.conv(graph, opts.show_dot)
+f = open(opts.output_js, 'w')
+f.write(out)
+f.close()
