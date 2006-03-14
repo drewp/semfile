@@ -30,9 +30,7 @@ from twisted.application import internet, service
 from nevow import appserver, loaders, inevow, rend, static
 from rdflib import Graph, URIRef, Namespace, RDF
 
-from semfile import read_or_create_graph, graph_filename, all_documents
-
-foaf = Namespace("http://xmlns.com/foaf/0.1/")
+from semfile import read_or_create_graph, all_documents, FOAF
 
 class DocumentWithTopics:
     __implements__ = inevow.IContainer,
@@ -42,24 +40,21 @@ class DocumentWithTopics:
 
     def child(self, context, name):
         if name == 'topics':
-            graph = read_or_create_graph(graph_filename)
-            return graph.objects(self.doc, foaf['topic'])
+            graph = read_or_create_graph()
+            return graph.objects(self.doc, FOAF['topic'])
 
 class Root(rend.Page):
     docFactory = loaders.xmlfile('filelist.html')
     def childFactory(self, ctx, name):
         if name in ['tags.rdf','graph','wz_jsgraphics.js']:
             return static.File(name, defaultType="text/html")
-	if name in ['boxar-tags.png']:
-            return static.File(name)
-
-        if name == "thumbs":
+	if name in ['boxar-tags.png', 'thumbs']:
             return static.File(name)
             
         return self.docFactory#Tags(name)
 
     def data_files(self, context, data):
-        graph = read_or_create_graph(graph_filename)
+        graph = read_or_create_graph()
         for s in all_documents(graph):
             t = graph.value(subject=s, predicate=RDF.type)
             yield DocumentWithTopics(s,t)
