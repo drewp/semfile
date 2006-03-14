@@ -25,9 +25,9 @@ TAG = Namespace("http://photo.bigasterisk.com/tag/")
 DC = Namespace("http://purl.org/dc/terms/")
 
 
-graph_filename = sibpath(__file__, "tags.rdf")
+graph_filename = os.getenv("SEMFILE_TAGS", sibpath(__file__, "tags.rdf"))
 
-def read_or_create_graph():
+def read_or_create_graph(tags=None):
     # someday this will probably return a proxy to a shared, networked graph
     graph = Graph()
     try:

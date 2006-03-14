@@ -38,4 +38,3 @@ for tag in sys.argv[2:]:
     graph.add((file_uri, FOAF['topic'], tag_uri))
 
 close_graph(graph)
-

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+   xmlns:_3="http://purl.org/dc/terms/"
+   xmlns:_4="http://xmlns.com/foaf/0.1/"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+>
+  <rdf:Description rdf:about="file://score.bigasterisk.com/home/drewp/projects/semfile/test/image1.jpg">
+    <_3:issued>2006-03-12T00:49:55-07:00</_3:issued>
+    <_4:topic rdf:resource="http://photo.bigasterisk.com/tag/atag"/>
+    <rdf:type rdf:resource="http://xmlns.com/foaf/0.1/Image"/>
+  </rdf:Description>
+</rdf:RDF>
