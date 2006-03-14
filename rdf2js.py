@@ -21,9 +21,17 @@ from __future__ import division
 import sys, tempfile, os, shlex, urlparse, sets
 from md5 import md5
 from rdflib import Graph, RDF, Namespace
-from optparse import OptionParser
+from nevow import tags as T
+from nevow.flat.ten import flatten
+from semfile import FOAF
 sys.path.append("/my/site/quickwit")
-import resizeimg
+try:
+    import resizeimg
+except ImportError:
+    class _:
+        def writethumbnail(self, *args):
+            print "missing thumbnail code"
+    resizeimg = _()
 
 def css_attrs(**kw):
     return "; ".join(["%s: %s" % (k.replace('_','-'),v)
@@ -35,7 +43,7 @@ class Jsrender:
     scale = 120,120 # pixels per graphviz unit
     def __init__(self):
         self.draw_cmds = ""
-        self.html_cmds = ""
+        self.html_cmds = []
 
     def worldx(self, gx, _idx=0):
         wx = gx * self.scale[_idx]
@@ -66,8 +74,7 @@ class Jsrender:
                             height="%spx" % self.worldy(h),
                             text_align=textAlign))
 
-        self.html_cmds += ('<div style="%s">%s</div>\n' %
-                           (css_attrs(**attrs), html))
+        self.html_cmds += [T.div(style=css_attrs(**attrs))[html]]
 
     def polyline(self,xy):
         def jsarray(l,mapfunc):
@@ -77,21 +84,17 @@ class Jsrender:
         self.draw_cmds += "jg.drawPolyline(%s,%s);\n" % (xs, ys)
 
     def output(self):
-        return """
-<html><head>
-<script type="text/javascript" src="wz_jsgraphics.js"></script>
-</head><body bgcolor=#cdcdb4>
- <script type="text/javascript">
-  <!--
-   var jg = new jsGraphics();
-%(draw_cmds)s
-   jg.paint();
-  //-->
- </script>
- %(html_cmds)s
-</body></html>
-""" % self.__dict__
-
+        return flatten(
+            T.html[
+              T.head[T.script(type="text/javascript", src="wz_jsgraphics.js")],
+              T.body(bgcolor="#cdcdb4")[
+                T.script(type="text/javascript")[
+                     "var jg = new jsGraphics();",
+                     self.draw_cmds,
+                     "jg.paint();",
+                     ],
+                self.html_cmds
+            ]])
 
 class DotParse:
     """parse output from 'dot -Tplain' etc
@@ -138,13 +141,13 @@ class DotToJs(DotParse):
         
     def node(self, name, x, y, width, height):
         self.jsr.label(x - width / 2, y - height / 2, 
-                       width, height, "center", node_html.get(name,""),
+                       width, height, "center", self.node_html.get(name,""),
                        background="white", border="1px solid")
 
     def edge(self, label, xy, xl, yl):
         self.jsr.polyline(xy)
         self.jsr.label(xy[-2],xy[-1],html=">") # arrowheads :)
-        label = '<a href="%s">%s</a>' % (label, label[label.rfind('/')+1:])
+        label = T.a(href=label)[label[label.rfind('/')+1:]]
         if label is not None:
             self.jsr.label(float(xl), float(yl),
                            html=label)
@@ -190,77 +193,66 @@ class GraphvizOut:
         self.wr("}\n")
 
 
-parser = OptionParser()
-parser.add_option("-i","--input-rdf",help="rdf file to read")
-parser.add_option("-o","--output-js",help="js file to write")
-parser.add_option("--show-dot", action="store_true",
-                  help="print the input to graphviz")
-opts,args = parser.parse_args()
+def conv(graph, show_dot=False):
+    node_html = {} # urlstr : path
 
-graph = Graph()
-graph.load(opts.input_rdf)
+    dotfile = tempfile.NamedTemporaryFile(prefix="rdf2js_graph_",suffix=".dot")
 
-node_html = {} # urlstr : path
-
-dotfile = tempfile.NamedTemporaryFile(prefix="rdf2js_graph_",suffix=".dot")
-
-if 1:
-    layout_prog = "neato"
-    digraph = False
-else:
-    layout_prog = "dot"
-    digraph = True
-go = GraphvizOut(dotfile.write, digraph)
+    if 1:
+        layout_prog = "neato"
+        digraph = False
+    else:
+        layout_prog = "dot"
+        digraph = True
+    go = GraphvizOut(dotfile.write, digraph)
 
 
-edge_clique = sets.Set()
+    edge_clique = sets.Set()
 
-for s,p,o in graph.triples((None,None,None)):
-    weight = 1
-        
-    addr,netloc,path,params,query,frag = urlparse.urlparse(s)
-    if (p, o) == (RDF.type, Namespace("http://xmlns.com/foaf/0.1/")['Image']):
+    for s,p,o in graph.triples((None,None,None)):
+        weight = 1
 
-        thumb = os.path.join("thumbs",
-                             md5(s).hexdigest() + os.path.splitext(s)[1])
-        resizeimg.writethumbnail(s[7:], thumb)
-        imgpath = thumb
-        go.node(s, width=200/120, height=200/120)
-        node_html[str(s)] = ('<img src="%s" alt="%s">' %
-                             (imgpath,s))
-        continue # no type edge/node needed
-    
-    if str(s) not in node_html:
-        node_html[str(s)] = s
+        addr,netloc,path,params,query,frag = urlparse.urlparse(s)
+        if (p, o) == (RDF.type, FOAF['Image']):
 
-    addr,netloc,path,params,query,frag = urlparse.urlparse(o)
-    if p == Namespace("http://xmlns.com/foaf/0.1/")['topic']:
-        go.node(o, width=.6, height=.3)
-        node_html[str(o)] = "Topic:<br/>" + path.split('/')[-1]
-        edge_clique.add(o)
+            thumb = os.path.join("thumbs",
+                                 md5(s).hexdigest() + os.path.splitext(s)[1])
+            resizeimg.writethumbnail(s[7:], thumb)
+            imgpath = thumb
+            go.node(s, width=200/120, height=200/120)
+            node_html[str(s)] = T.img(src=imgpath, alt=s)
+            continue # no type edge/node needed
 
-    if str(o) not in node_html:
-        node_html[str(o)] = o
+        if str(s) not in node_html:
+            node_html[str(s)] = s
 
-    go.edge(s, o, label=p, weight=weight)
+        addr,netloc,path,params,query,frag = urlparse.urlparse(o)
+        if p == FOAF['topic']:
+            go.node(o, width=.6, height=.3)
+            node_html[str(o)] = ["Topic:", T.br, path.split('/')[-1]]
+            edge_clique.add(o)
+
+        if str(o) not in node_html:
+            node_html[str(o)] = o
+
+        go.edge(s, o, label=p, weight=weight)
 
 
-for e in edge_clique:
-    for e2 in edge_clique:
-        if e2 != e:
-            go.edge(e, e2, weight=2, style="invis")
+    for e in edge_clique:
+        for e2 in edge_clique:
+            if e2 != e:
+                go.edge(e, e2, weight=2, style="invis")
 
-go.close()
-dotfile.flush()
+    go.close()
+    dotfile.flush()
 
-print open(dotfile.name).read()
+    if show_dot:
+        print open(dotfile.name).read()
 
-if opts.show_dot:
-    print open(dotfile.name).read()
+    jsr = Jsrender()
 
-jsr = Jsrender()
+    DotToJs(os.popen('%s -Tplain %s' % (layout_prog, dotfile.name)),
+            jsr, node_html)
 
-DotToJs(os.popen('%s -Tplain %s' % (layout_prog, dotfile.name)),
-        jsr, node_html)
-        
-open(opts.output_js, 'w').write(jsr.output())
+    return jsr.output()
+
