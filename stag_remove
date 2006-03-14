@@ -4,25 +4,32 @@
 add. interactive console ui.
 """
 
+from optparse import OptionParser
 from rdflib.util import date_time, parse_date_time
 from semfile import read_or_create_graph, close_graph, FOAF, TAG, DC
 
-max_gap_time = 5
+parser = OptionParser(usage="remove resources (files) from the database")
+parser.add_option("--max_gap_time", type="int", default=5,
+  help="seconds between the most recently added resources (default %default)")
+parser.add_option("--yes", action="store_true",
+                  help="answer yes to all questions")
+opts, args = parser.parse_args()
 
 graph = read_or_create_graph()
 
-issue_times = {} # uri : time
+issue_times = [] # time, uri
 for s,o in graph.subject_objects(predicate=DC['issued']):
-    issue_times[s] = parse_date_time(o)
+    issue_times.append((parse_date_time(o), s))
+issue_times.sort()
 try:
-    most_recent = max(issue_times.values())
+    most_recent = issue_times[-1][0]
 except ValueError:
     raise SystemExit("no issue times found in graph")
 
 oldest_recent = most_recent
 recently_added = []
-for uri,t in issue_times.items():
-    if t > oldest_recent - max_gap_time:
+for t, uri in issue_times:
+    if t > oldest_recent - opts.max_gap_time:
         recently_added.append((t,uri))
         oldest_recent = min(t, oldest_recent)
 recently_added.sort()
@@ -30,14 +37,18 @@ recently_added.sort()
 print ("The most recently-issued resource in the graph was issued at %s" %
        date_time(most_recent, local_time_zone=True))
 print "Here are all the resources issued close to that one (gaps between times"
-print "do not exceed %s seconds):" % max_gap_time
-for t,uri in recently_added:
+print "do not exceed %s seconds):" % opts.max_gap_time
+for t, uri in recently_added:
     print "  %s   %s" % (date_time(t, local_time_zone=True), uri)
 
-ans = raw_input("Remove those %s items [y]? " % len(recently_added))
-if ans not in ['','y','Y']:
-    raise SystemExit("no changes made")
-
+print "Remove those %s items [y]?" % len(recently_added),
+if not opts.yes:
+    ans = raw_input()
+    if ans not in ['','y','Y']:
+        raise SystemExit("no changes made")
+else:
+    print "y"
+    
 for t,uri in recently_added:
     for stmt in graph.triples((uri,None,None)):
         graph.remove(stmt)
