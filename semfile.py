@@ -13,6 +13,10 @@ the validator's graphviz interface source code
 
 http://esw.w3.org/topic/ImageDescription
 
+
+todo:
+sync tags into beagle for searching
+
 """
 
 import socket, os, mimetypes
@@ -21,7 +25,7 @@ from twisted.python.util import sibpath
 
 FOAF = Namespace("http://xmlns.com/foaf/0.1/")
 # these are like http://technorati.com/tag/ tags
-TAG = Namespace("http://photo.bigasterisk.com/tag/")
+TAG = Namespace("http://semfile.bigasterisk.com/tag#")
 DC = Namespace("http://purl.org/dc/terms/")
 
 
@@ -71,3 +75,4 @@ def foafType(path):
     if mimetype is not None and mimetype.startswith("image/"):
         return FOAF['Image']
 
+    return FOAF['Document'] # from my memory - check on this

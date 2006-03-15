@@ -41,21 +41,21 @@ class DocumentWithTopics:
     def child(self, context, name):
         if name == 'topics':
             graph = read_or_create_graph()
-            return graph.objects(self.doc, FOAF['topic'])
+            for topic in sorted(graph.objects(self.doc, FOAF['topic'])):
+                yield graph.label(topic)
 
 class Root(rend.Page):
     docFactory = loaders.xmlfile('filelist.html')
     def childFactory(self, ctx, name):
-        if name in ['tags.rdf','graph','wz_jsgraphics.js']:
+        if name in ['tags.rdf', 'graph', 'wz_jsgraphics.js']:
             return static.File(name, defaultType="text/html")
 	if name in ['boxar-tags.png', 'thumbs']:
             return static.File(name)
-            
-        return self.docFactory#Tags(name)
+        return self.docFactory
 
     def data_files(self, context, data):
         graph = read_or_create_graph()
-        for s in all_documents(graph):
+        for s in sorted(all_documents(graph)):
             t = graph.value(subject=s, predicate=RDF.type)
             yield DocumentWithTopics(s,t)
 

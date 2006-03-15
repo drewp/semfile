@@ -15,7 +15,7 @@ http://www.kanzaki.com/test/exif2rdf
 """
 
 import os, sys, urllib, time, socket, mimetypes
-from rdflib import Graph, URIRef, Namespace, RDF, Literal
+from rdflib import Graph, URIRef, Namespace, RDF, Literal, RDFS
 from rdflib.util import date_time
 from semfile import read_or_create_graph, close_graph, FOAF, TAG, DC, \
      uriForFile, foafType
@@ -36,5 +36,6 @@ if rdftype is not None:
 for tag in sys.argv[2:]:
     tag_uri = URIRef(TAG[urllib.quote_plus(tag)])
     graph.add((file_uri, FOAF['topic'], tag_uri))
+    graph.add((tag_uri, RDFS.label, Literal(tag)))
 
 close_graph(graph)

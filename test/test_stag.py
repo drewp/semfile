@@ -16,7 +16,7 @@ class Test(CleanTags):
         u = testfileuri("somefile1")
         self.assertEqual(graph.value(u, FOAF['topic']), TAG['atag'])
         self.assertNotEqual(graph.value(u, DC['issued'], None), None)
-        self.assertEqual(graph.value(u, RDF.type, None), None)
+        self.assertEqual(graph.value(u, RDF.type), FOAF['Document'])
 
     def testCreateImageTag(self):
         call("stag", imagePath, "atag")
