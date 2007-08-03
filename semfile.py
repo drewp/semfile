@@ -31,13 +31,17 @@ DC = Namespace("http://purl.org/dc/terms/")
 
 graph_filename = os.getenv("SEMFILE_TAGS", sibpath(__file__, "tags.rdf"))
 
+_graph = None
 def read_or_create_graph(tags=None):
-    # someday this will probably return a proxy to a shared, networked graph
+    global _graph
+    if _graph is not None:
+        return _graph
     graph = Graph()
     try:
         graph.load(graph_filename)
     except OSError, e:
         print "starting new graph at %r" % graph_filename
+    _graph = graph
     return graph
 
 def close_graph(graph):

@@ -35,7 +35,6 @@ from zope.interface import Interface, implements
 
 from semfile import read_or_create_graph, all_documents, FOAF
 
-# this is now broken with the new nevow+twisted version. not sure how to fix it
 class DocumentWithTopics(object):
     implements(inevow.IContainer)
 
@@ -46,7 +45,7 @@ class DocumentWithTopics(object):
         if name == 'topics':
             graph = read_or_create_graph()
             for topic in sorted(graph.objects(self.doc, FOAF['topic'])):
-                yield graph.label(topic)
+                yield graph.label(topic, default=topic)
 
 
 class Root(rend.Page):
@@ -57,7 +56,7 @@ class Root(rend.Page):
 	if name in ['boxar-tags.png', 'thumbs']:
             return static.File(name)
             
-        return docFactory#Tags(name)
+        return rend.Page.childFactory(self, ctx, name)
 
     def data_files(self, context, data):
         graph = read_or_create_graph()
