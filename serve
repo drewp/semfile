@@ -23,17 +23,21 @@ a thumbnail example:
   </rdf:Description>
   "
 
+http://www.decafbad.com/2005/06/map-test/
+see also
 
 """
 import re, os
 from twisted.application import internet, service
 from nevow import appserver, loaders, inevow, rend, static
 from rdflib import Graph, URIRef, Namespace, RDF
+from zope.interface import Interface, implements
 
 from semfile import read_or_create_graph, all_documents, FOAF
 
-class DocumentWithTopics:
-    __implements__ = inevow.IContainer,
+# this is now broken with the new nevow+twisted version. not sure how to fix it
+class DocumentWithTopics(object):
+    implements(inevow.IContainer)
 
     def __init__(self, doc, rdftype):
         self.doc, self.rdftype = doc, rdftype
@@ -44,6 +48,7 @@ class DocumentWithTopics:
             for topic in sorted(graph.objects(self.doc, FOAF['topic'])):
                 yield graph.label(topic)
 
+
 class Root(rend.Page):
     docFactory = loaders.xmlfile('filelist.html')
     def childFactory(self, ctx, name):
@@ -51,7 +56,8 @@ class Root(rend.Page):
             return static.File(name, defaultType="text/html")
 	if name in ['boxar-tags.png', 'thumbs']:
             return static.File(name)
-        return self.docFactory
+            
+        return docFactory#Tags(name)
 
     def data_files(self, context, data):
         graph = read_or_create_graph()
